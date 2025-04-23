@@ -1,19 +1,14 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { LinkedInAnalyzerService } from "../services/linkedin-analyzer.service";
-import { storageHelper as storageHelperUtils } from "../helpers/storage";
+import { LinkedInContentFetcherService } from "../services/linkedin-content-fetch.service";
+import { storageHelper } from "../helpers/storage";
 
 // Import the types
-import type {
-  LinkedInPost,
-  JobListing,
-} from "../services/linkedin-analyzer.service";
+import type { LinkedInPost } from "../services/linkedin-content-fetch.service";
 
 export default function AnalysisPage() {
-  const [analysisResults, setAnalysisResults] = useState<
-    (LinkedInPost | JobListing)[]
-  >([]);
+  const [analysisResults, setAnalysisResults] = useState<LinkedInPost[]>([]);
   const [error, setError] = useState<string>("");
   const domContentRef = useRef<HTMLTextAreaElement>(null);
 
@@ -27,52 +22,21 @@ export default function AnalysisPage() {
         return;
       }
 
+      // Just parse and send the entire DOM to analyzer
       const parser = new DOMParser();
       const doc = parser.parseFromString(domContent, "text/html");
-      const analyzer = LinkedInAnalyzerService.getInstance();
-      const results: (LinkedInPost | JobListing)[] = [];
+      const analyzer = LinkedInContentFetcherService.getInstance();
 
-      // Analyze content as before
-      const jobElements = doc.querySelectorAll(
-        '.job-details-jobs-unified-top-card, [data-test="job-card-container"]'
-      );
-      jobElements.forEach((element) => {
-        results.push(...analyzer.analyzeContent(element.outerHTML));
-      });
-
-      const postElements = doc.querySelectorAll(
-        ".feed-shared-update-v2, .update-components-text"
-      );
-      postElements.forEach((element) => {
-        results.push(...analyzer.analyzeContent(element.outerHTML));
-      });
+      // Let analyzer handle all DOM traversal and extraction
+      const results = analyzer.analyzeContent(doc.documentElement.outerHTML);
 
       if (results.length === 0) {
         setError("No LinkedIn content found in the provided HTML");
         return;
       }
 
-      // Store emails and phone numbers from results
-      results.forEach((result) => {
-        if ("emails" in result) {
-          // Job listing
-          storageHelperUtils.saveEmails(
-            result.emails || [],
-            `Job: ${result.title || "Unknown"}`,
-            result.phones?.[0]
-          );
-        } else if (isLinkedInPost(result)) {
-          // LinkedIn post
-          const emailRegex = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/gi;
-          const emails = result.content.match(emailRegex) || [];
-          if (emails.length > 0) {
-            storageHelperUtils.saveEmails(
-              emails,
-              `Post by: ${result.author.name}`
-            );
-          }
-        }
-      });
+      // Store the complete post data
+      storageHelper.savePosts(results);
 
       setAnalysisResults(results);
     } catch (err) {
@@ -81,16 +45,8 @@ export default function AnalysisPage() {
           err instanceof Error ? err.message : "Unknown error"
         }`
       );
-      console.error("Analysis error:", err);
     }
   };
-
-  // Add these type guard functions
-  function isLinkedInPost(
-    result: LinkedInPost | JobListing
-  ): result is LinkedInPost {
-    return "author" in result && "content" in result;
-  }
 
   return (
     <div className="container mx-auto p-4">
@@ -122,59 +78,41 @@ export default function AnalysisPage() {
         <div className="results-container">
           <h2 className="text-xl font-semibold mb-4">Analysis Results</h2>
           <div className="space-y-6">
-            {analysisResults.map((result) => (
+            {analysisResults.map((post, index) => (
               <div
-                key={isLinkedInPost(result) ? result.id : result.title}
+                key={`${post.id}-${index}`}
                 className="border rounded-lg p-4 shadow"
               >
-                {isLinkedInPost(result) ? (
-                  // Post content
-                  <>
-                    <div>
-                      <h4 className="font-medium text-gray-700">Author</h4>
-                      <div className="ml-4">
-                        <p>Name: {result.author.name}</p>
-                        <p>Title: {result.author.title}</p>
-                        {result.author.connectionDegree && (
-                          <p>
-                            Connection: {result.author.connectionDegree}nd
-                            degree
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    {result.content && (
-                      <div>
-                        <h4 className="font-medium text-gray-700">Content</h4>
-                        <p className="ml-4 whitespace-pre-wrap">
-                          {result.content}
-                        </p>
-                      </div>
+                <div>
+                  <h4 className="font-medium text-gray-700">Author</h4>
+                  <div className="ml-4">
+                    <p>Name: {post.author.name}</p>
+                    <p>Title: {post.author.title}</p>
+                    {post.author.connectionDegree && (
+                      <p>Connection: {post.author.connectionDegree}nd degree</p>
                     )}
-                  </>
-                ) : (
-                  // Job listing content
-                  <>
-                    <div>
-                      <h4 className="font-medium text-gray-700">Job Details</h4>
-                      <div className="ml-4">
-                        <p>Title: {result.title}</p>
-                        <p>Company: {result.company}</p>
-                        <p>Location: {result.location}</p>
-                        <p>Posted: {result.postedDate}</p>
-                      </div>
+                  </div>
+                </div>
+
+                {post.content && (
+                  <div>
+                    <h4 className="font-medium text-gray-700">Content</h4>
+                    <p className="ml-4 whitespace-pre-wrap">{post.content}</p>
+                  </div>
+                )}
+
+                {post.emails && post.emails.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-gray-700">Contact</h4>
+                    <div className="ml-4">
+                      {post.emails.map((email, idx) => (
+                        <p key={idx}>Email: {email}</p>
+                      ))}
+                      {post.phones?.map((phone, idx) => (
+                        <p key={idx}>Phone: {phone}</p>
+                      ))}
                     </div>
-                    {result.description && (
-                      <div>
-                        <h4 className="font-medium text-gray-700">
-                          Description
-                        </h4>
-                        <p className="ml-4 whitespace-pre-wrap">
-                          {result.description}
-                        </p>
-                      </div>
-                    )}
-                  </>
+                  </div>
                 )}
               </div>
             ))}

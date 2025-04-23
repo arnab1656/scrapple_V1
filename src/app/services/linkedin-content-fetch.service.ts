@@ -18,6 +18,8 @@ export interface LinkedInPost {
   timestamp?: string;
   reactions?: PostReactions;
   comments?: PostComment[];
+  emails: string[];
+  phones: string[];
 }
 
 export interface JobListing {
@@ -55,31 +57,32 @@ export interface PostComment {
  * This service only processes static HTML content that is already loaded.
  * WARNING: Do not add any API calls to this service to avoid account restrictions.
  */
-export class LinkedInAnalyzerService {
-  private static instance: LinkedInAnalyzerService;
+export class LinkedInContentFetcherService {
+  private static instance: LinkedInContentFetcherService;
   private emailValidator: EmailValidationService;
 
   private constructor() {
     this.emailValidator = EmailValidationService.getInstance();
   }
 
-  public static getInstance(): LinkedInAnalyzerService {
-    if (!LinkedInAnalyzerService.instance) {
-      LinkedInAnalyzerService.instance = new LinkedInAnalyzerService();
+  public static getInstance(): LinkedInContentFetcherService {
+    if (!LinkedInContentFetcherService.instance) {
+      LinkedInContentFetcherService.instance =
+        new LinkedInContentFetcherService();
     }
-    return LinkedInAnalyzerService.instance;
+    return LinkedInContentFetcherService.instance;
   }
 
-  public analyzeContent(domContent: string): (LinkedInPost | JobListing)[] {
+  public analyzeContent(domContent: string): LinkedInPost[] {
     const parser = new DOMParser();
     const doc = parser.parseFromString(domContent, "text/html");
 
-    // Remove all elements that could trigger network requests
+    // Remove network request elements
     doc
       .querySelectorAll('img, iframe, script, link[rel="prefetch"]')
       .forEach((el) => el.remove());
 
-    // Remove all event handlers
+    // Remove event handlers
     doc
       .querySelectorAll("[onclick], [onload], [src], [srcset]")
       .forEach((el) => {
@@ -94,19 +97,17 @@ export class LinkedInAnalyzerService {
       });
 
     const posts = Array.from(doc.querySelectorAll(".feed-shared-update-v2"));
-    return posts.map((postElement) => {
-      if (this.isJobListing(postElement)) {
-        return this.extractJobInfo(postElement);
-      } else {
-        return {
-          id: crypto.randomUUID(),
-          author: this.extractAuthorInfo(postElement),
-          content: this.extractPostContent(postElement),
-          timestamp: this.extractTimestamp(postElement),
-          reactions: this.getBasicReactions(postElement),
-          comments: this.getBasicComments(postElement),
-        };
-      }
+    return posts.map((postElement): LinkedInPost => {
+      return {
+        id: crypto.randomUUID(),
+        author: this.extractAuthorInfo(postElement),
+        content: this.extractPostContent(postElement),
+        timestamp: this.extractTimestamp(postElement),
+        reactions: this.getBasicReactions(postElement),
+        comments: this.getBasicComments(postElement),
+        emails: this.extractEmails(postElement as HTMLElement),
+        phones: this.extractPhoneNumbers(postElement),
+      };
     });
   }
 
@@ -124,7 +125,7 @@ export class LinkedInAnalyzerService {
       company: this.extractCompanyName(element),
       location: this.extractLocation(element),
       description: this.extractDescription(element),
-      emails: this.extractEmails(element),
+      emails: this.extractEmails(element as HTMLElement),
       phones: this.extractPhoneNumbers(element),
       postedDate: this.extractPostedDate(element),
     };
@@ -168,13 +169,39 @@ export class LinkedInAnalyzerService {
     );
   }
 
-  private extractEmails(element: Element): string[] {
-    const text = element.textContent || "";
-    const emailRegex = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/gi;
-    const foundEmails = text.match(emailRegex) || [];
+  private extractEmails(element: HTMLElement): string[] {
+    // Now we can directly use innerText without casting
+    const innerText = element.innerText;
+
+    const firstChild = element.firstElementChild?.innerHTML;
+    console.log("firstChild", firstChild);
+
+    console.log("innerText", innerText);
+
+    // Target elements with both mailto: and data-test-app-aware-link
+    const mailtoLinks = element.querySelectorAll(
+      'a[href^="mailto:"][data-test-app-aware-link]'
+    );
+
+    const mailtoEmails = Array.from(mailtoLinks)
+      .map((link) => {
+        const href = link.getAttribute("href");
+        return href ? href.replace("mailto:", "").trim() : null;
+      })
+      .filter((email): email is string => email !== null);
+
+    // If no mailto links found, fallback to regex extraction
+    if (mailtoEmails.length === 0) {
+      const emailRegex = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/gi;
+      const foundEmails = innerText.match(emailRegex) || [];
+      return this.emailValidator
+        .processEmails(foundEmails)
+        .map((result: ValidatedEmail) => result.cleaned)
+        .filter((email: string | null): email is string => email !== null);
+    }
 
     return this.emailValidator
-      .processEmails(foundEmails)
+      .processEmails(mailtoEmails)
       .map((result: ValidatedEmail) => result.cleaned)
       .filter((email: string | null): email is string => email !== null);
   }
