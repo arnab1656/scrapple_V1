@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { LinkedInContentFetcherService } from "../services/linkedin-content-fetch.service";
-import { storageHelper } from "../helpers/storage";
+import { LinkedInContentFetcherService } from "../../services/linkedin-content-fetch.service";
+import { storageHelper } from "../../helpers/storage";
+import { EmailService } from "../../services/email.service";
 
 // Import the types
-import type { LinkedInPost } from "../services/linkedin-content-fetch.service";
+import type { LinkedInPost } from "../../services/linkedin-content-fetch.service";
+import { EmailResponse } from "@/common/interface/emailResponse.interface";
 
 export default function AnalysisPage() {
   const [analysisResults, setAnalysisResults] = useState<LinkedInPost[]>([]);
@@ -30,6 +32,8 @@ export default function AnalysisPage() {
       // Let analyzer handle all DOM traversal and extraction
       const results = analyzer.analyzeContent(doc.documentElement.outerHTML);
 
+      // debugger;
+
       if (results.length === 0) {
         setError("No LinkedIn content found in the provided HTML");
         return;
@@ -46,6 +50,16 @@ export default function AnalysisPage() {
         }`
       );
     }
+  };
+
+  const handleSendEmails = async () => {
+    const storedPosts = storageHelper.getStoredPosts();
+    const emailService = EmailService.getInstance();
+    const result: EmailResponse = await emailService.sendBulkEmails(
+      storedPosts
+    );
+    console.log("result", result);
+    // debugger;
   };
 
   return (
@@ -65,6 +79,12 @@ export default function AnalysisPage() {
           className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 cursor-pointer"
         >
           Analyze Content
+        </button>
+        <button
+          onClick={handleSendEmails}
+          className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 cursor-pointer ml-2"
+        >
+          Send Emails
         </button>
       </div>
 

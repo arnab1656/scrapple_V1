@@ -22,16 +22,6 @@ export interface LinkedInPost {
   phones: string[];
 }
 
-export interface JobListing {
-  title?: string;
-  company?: string;
-  location?: string;
-  description?: string;
-  emails?: string[];
-  phones?: string[];
-  postedDate?: string;
-}
-
 export interface PostReactions {
   count: number;
   types: {
@@ -111,72 +101,11 @@ export class LinkedInContentFetcherService {
     });
   }
 
-  private isJobListing(element: Element): boolean {
-    return !!(
-      element.querySelector(".job-details-jobs-unified-top-card__job-title") ||
-      element.querySelector('[data-test="job-card-container"]') ||
-      element.querySelector(".jobs-search__job-details")
-    );
-  }
-
-  private extractJobInfo(element: Element): JobListing {
-    return {
-      title: this.extractJobTitle(element),
-      company: this.extractCompanyName(element),
-      location: this.extractLocation(element),
-      description: this.extractDescription(element),
-      emails: this.extractEmails(element as HTMLElement),
-      phones: this.extractPhoneNumbers(element),
-      postedDate: this.extractPostedDate(element),
-    };
-  }
-
-  private extractJobTitle(element: Element): string {
-    return (
-      element
-        .querySelector(
-          '.job-details-jobs-unified-top-card__job-title, [data-test="job-card-title"]'
-        )
-        ?.textContent?.trim() || ""
-    );
-  }
-
-  private extractCompanyName(element: Element): string {
-    return (
-      element
-        .querySelector(
-          '[data-test="company-name"], .jobs-unified-top-card__company-name'
-        )
-        ?.textContent?.trim() || ""
-    );
-  }
-
-  private extractLocation(element: Element): string {
-    return (
-      element
-        .querySelector(
-          '.job-details-jobs-unified-top-card__bullet, [data-test="job-card-location"]'
-        )
-        ?.textContent?.trim() || ""
-    );
-  }
-
-  private extractDescription(element: Element): string {
-    return (
-      element
-        .querySelector('.description__text, [data-test="job-description"]')
-        ?.textContent?.trim() || ""
-    );
-  }
-
   private extractEmails(element: HTMLElement): string[] {
     // Now we can directly use innerText without casting
     const innerText = element.innerText;
 
-    const firstChild = element.firstElementChild?.innerHTML;
-    console.log("firstChild", firstChild);
-
-    console.log("innerText", innerText);
+    // const firstChild = element.firstElementChild?.innerHTML;
 
     // Target elements with both mailto: and data-test-app-aware-link
     const mailtoLinks = element.querySelectorAll(
@@ -224,16 +153,6 @@ export class LinkedInContentFetcherService {
     });
 
     return Array.from(phones);
-  }
-
-  private extractPostedDate(element: Element): string {
-    return (
-      element
-        .querySelector(
-          '.jobs-unified-top-card__posted-date, [data-test="job-card-posted-date"]'
-        )
-        ?.textContent?.trim() || ""
-    );
   }
 
   private extractAuthorInfo(element: Element): LinkedInProfile {

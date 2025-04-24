@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import { storageHelper } from "./helpers/storage";
+import { storageHelper } from "../helpers/storage";
 
 interface ParsedData {
   title?: string;

@@ -8,7 +8,7 @@ interface StoredEmail {
   phone?: string;
 }
 
-interface StoredPost {
+export interface StoredPost {
   id: string;
   author: {
     name: string;
@@ -56,7 +56,7 @@ export const storageHelper = {
       const updatedEmails = [...storedEmails, ...newEmails];
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedEmails));
 
-      return newEmails.length; // Return number of new emails added
+      return newEmails.length;
     } catch (error) {
       console.error("Error saving emails:", error);
       return 0;
