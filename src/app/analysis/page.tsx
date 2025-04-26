@@ -3,11 +3,10 @@
 import { useState, useRef } from "react";
 import { LinkedInContentFetcherService } from "../../services/linkedin-content-fetch.service";
 import { storageHelper } from "../../helpers/storage";
-import { EmailService } from "../../services/email.service";
 
 // Import the types
 import type { LinkedInPost } from "../../services/linkedin-content-fetch.service";
-import { EmailResponse } from "@/common/interface/emailResponse.interface";
+import { emailAutomateCall } from "@/action/emailAutomate";
 
 export default function AnalysisPage() {
   const [analysisResults, setAnalysisResults] = useState<LinkedInPost[]>([]);
@@ -54,10 +53,8 @@ export default function AnalysisPage() {
 
   const handleSendEmails = async () => {
     const storedPosts = storageHelper.getStoredPosts();
-    const emailService = EmailService.getInstance();
-    const result: EmailResponse = await emailService.sendBulkEmails(
-      storedPosts
-    );
+    const result = await emailAutomateCall(storedPosts);
+
     console.log("result", result);
     // debugger;
   };
